@@ -1,0 +1,90 @@
+---
+title: "Behavioural analysis of the avoidance"
+output: html_notebook
+---
+
+In this notebook we analyze the behavioural portion of the NFC project.
+1. load libraries
+2. load data
+3. create a db with
+
+  3.0. CSplus color
+  3.1. BL rating
+  3.2. CS+ rating
+  3.3. CS- rating
+  3.4. CS+ shock prob
+  3.5. CS- shock prob
+  3.6. number of avoidance trials
+  3.7. number of selfinflicting
+
+#####################
+# 1. load libraries #
+#####################
+```{r}
+library('ggplot2')
+```
+################
+# 2. load data #
+################
+```{r}
+setwd("/home/nachshon/Documents/NFC/NFC/pilot/subj")
+data_files = dir()
+raw_data = do.call(rbind, lapply(data_files, read.csv))
+```
+################
+# 3. Create DB #
+################
+```{r}
+sublist = unique(raw_data$sub)
+db = data.frame()
+for (subj in sublist){
+  temp = subset(raw_data, sub == subj)
+  avoidance = NA 
+  self = NA
+  
+  if (temp$Group[1] == 1){
+    CSplus = 'blue'
+  }
+  else CSplus = 'yellow'
+  
+  if (temp$Condition[1] == 2){
+     self = sum(temp$shock, na.rm = TRUE)
+  }
+  else avoidance= sum(temp$avoid, na.rm = TRUE)
+  
+  temp <- subset(temp, (rating > 0))
+  temp <- temp[-c(3, 8, 10:15)]
+  temp["avoidance"] = avoidance
+  temp["self"] = self
+  
+  db <-  rbind(db, temp)
+}
+
+db$sub <- as.factor(db$sub)
+```
+
+
+```{r}
+ggplot(db, aes(x=trial_n, y = rating, color = stim)) + 
+  geom_rect(aes(xmin = 0, xmax = 8, ymin = -Inf, ymax = Inf),
+                   fill = "cyan", alpha = 0.005) +
+  geom_rect(aes(xmin = 48, xmax = 88, ymin = -Inf, ymax = Inf),
+                   colour = "grey", alpha = 0.005) +
+  geom_rect(aes(xmin = 88, xmax = 100, ymin = -Inf, ymax = Inf),
+                   fill = "green", alpha = 0.005) +
+  geom_point() + 
+  geom_smooth( aes(fill=stim)) +
+  ylab("Shock Probability")
+
+
+ggplot(db, aes(x=trial_n, y = prob, color = stim)) + 
+  geom_rect(aes(xmin = 40, xmax = 80, ymin = -Inf, ymax = Inf),
+                   colour = "grey", alpha = 0.005) +
+  geom_rect(aes(xmin = 80, xmax = 100, ymin = -Inf, ymax = Inf),
+                   fill = "green", alpha = 0.005) +
+  geom_point() + 
+     geom_smooth( aes(fill=stim)) + 
+  ylab("How do you like this shape") 
+  
+```
+
