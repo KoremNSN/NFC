@@ -61,10 +61,10 @@ class subject:
         self.trial_n = 0
         self.avoided = 0
         self.self_inf = 0
+        self.mon = monitors.Monitor('acer')
     
     def init_screen(self):
         # create a window object
-        self.mon = monitors.Monitor('acer')
         self.win = visual.Window(monitor=self.mon, color=[0,0,0], fullscr=True, size = [1920, 1080])
        
         # creates the visual objects for the experiment
@@ -81,13 +81,14 @@ class subject:
         
         self.mouse = event.Mouse()
        
-        if int(self.subjectID) % 2 <= 1: # colors of stims
-            self.stim = {"CSplus":"blue","CSminus":"yellow"}
+        if int(self.subjectID) % 2 == 0: # colors of stims
+            self.stim = {"CSplus" : "blue", "CSminus" : "yellow"}
         else:
-            self.stim={"CSplus":"yellow","CSminus":"blue"}
+            self.stim = {"CSplus" : "yellow", "CSminus" : "blue"}
             
         self.group = random.randint(0, 3) # list were created using the helper_function.py file. counterbalnce between the orders
         self.Condition = int(self.subjectID) % 3 # Should I look for a better method to sellect group gui?
+        
 
 
 #%% shock calibration
@@ -98,30 +99,34 @@ class subject:
         It is a simple loop that produce a shock.
         It zeros and than sends 1 on the 7 channel of the LJ.
         """
+        win = visual.Window(monitor=self.mon, color=[0,0,0], fullscr=True, size = [1920, 1080])
+        Text = visual.TextStim(win, text = "", pos = (0, 0), font = 'Courier New', height = 0.08,
+                               anchorHoriz = 'center', anchorVert = 'center', color = 'black', units = 'norm')
         
-        self.Text.text = 'shock intensity calibration'
-        self.Text.draw()
-        self.win.flip()
+        Text.text = 'shock intensity calibration'
+        Text.draw()
+        win.flip()
         event.waitKeys()
         
         
         while True:
             self.lj.setFIOState(7,0)
-            self.Text.text = 'get ready'
-            self.Text.draw()
-            self.win.flip()
+            Text.text = 'get ready'
+            Text.draw()
+            win.flip()
             time.sleep(1)
             self.lj.setFIOState(7,1)
             time.sleep(0.1)
             self.lj.setFIOState(7,0)
  
-            self.Text.text = 'did you feel it? "5" to accept'
-            self.Text.draw()
-            self.win.flip()
+            Text.text = 'did you feel it? "5" to accept'
+            Text.draw()
+            win.flip()
             buttonPress=event.waitKeys()
                  
             if buttonPress == ['5']:
                 break
+        win.close()
 
 #%% TOBii calibration
 
@@ -141,42 +146,54 @@ class subject:
         while gotSample == False: # not sure why is it in a loop (taken from reversal script)
             sample=self.tracker.getLastSample()
             if sample!=None:
-                getLength=len(sample) # creates an array (len = 50) the size of a complete sample of Tobii. 
+                self.getLength=len(sample) # creates an array (len = 50) the size of a complete sample of Tobii. 
                 gotSample=True
         
-        self.etData=np.zeros(getLength + 8) # add number of experiment spesific coulmns.
+        self.etData=np.zeros(self.getLength + 8) # add number of experiment spesific coulmns.
 
-#%%
+#%%      
     def TOBii_record(self, color, offset, stim=True, circle=False, mouse=False, fixation=False, text=False):
         
+        etTemp=np.zeros(self.getLength + 8)
+    
         onset = time.time()
         if mouse:
                 buttons = self.mouse.getPressed()
-        while time.time() - onset < offset:
-            if stim:
-                self.rect.draw()
-            if circle:
-                self.circle.draw()
-            if fixation:
-                self.fixation.draw()
-            if text:
-                self.Text.draw()
-            self.win.flip()
-            eyeSample=np.array(self.tracker.getLastSample())
-            
-            fullSample = np.append([self.subjectID, self.phase, self.trial_n, color, stim, circle, fixation, text], eyeSample)
-            self.etData=np.vstack([self.etData, fullSample])
-            
-            if mouse:
+        
+        if stim:
+            self.rect.draw()
+        if circle:
+            self.circle.draw()
+        if fixation:
+            self.fixation.draw()
+        if text:
+            self.Text.draw()
+        self.win.flip()
+        
+        if mouse:
+            while time.time() - onset < offset:
+                eyeSample=np.array(self.tracker.getLastSample())
+                fullSample = np.append([self.subjectID, self.phase, self.trial_n, color, stim, circle, fixation, text], eyeSample)
+                etTemp = np.vstack([etTemp, fullSample])
                 buttons = self.mouse.getPressed()
+                
                 if buttons[0] == 1:
+                    self.etData=np.vstack([self.etData, self.etTemp])
                     return 1
+        
+        else:
+            while time.time() - onset < offset:
+                eyeSample=np.array(self.tracker.getLastSample())
+                fullSample = np.append([self.subjectID, self.phase, self.trial_n, color, stim, circle, fixation, text], eyeSample)
+                etTemp = np.vstack([etTemp, fullSample])
+        
+        self.etData=np.vstack([self.etData, etTemp])
+        
         if mouse:
             return 0
-            
+ 
 
 #%% rating
-
     def rating(self, CS, real = True):
         """
         This function creates the VAS for the experiment. I use 2 VAS instead of 1 because the self.scale.labels = [] didn't work for some reason.
@@ -217,10 +234,10 @@ class subject:
                 self.scaleShock.draw()
                 self.win.flip()
                 eyeSample=np.array(self.tracker.getLastSample())
-                fullSample = np.append([self.subjectID, self.phase, self.trial_n, color, 'ranking', 'shock', "False", "False"], eyeSample)
+                fullSample = np.append([self.subjectID, self.phase, self.trial_n, color, 'ranking', 'shock', 'False', 'False'], eyeSample)
                 self.etData=np.vstack([self.etData, fullSample])
                 
-            likeRating, likeRT = self.scaleShock.getRating(), self.scaleShock.getRT()
+            shockprob, shockprobRT = self.scaleShock.getRating(), self.scaleShock.getRT()
         self.win.flip()
         time.sleep(0.2)
         # collect data about stim valence
@@ -233,17 +250,17 @@ class subject:
             self.scaleLike.draw()
             self.win.flip()
             eyeSample=np.array(self.tracker.getLastSample())
-            fullSample = np.append([self.subjectID, self.phase, self.trial_n, color, 'ranking', 'feel', "False", "False"], eyeSample)
+            fullSample = np.append([self.subjectID, self.phase, self.trial_n, color, 'ranking', 'feel', 'False', 'False'], eyeSample)
             self.etData=np.vstack([self.etData, fullSample])
         
         self.win.flip()
         time.sleep(0.2)
         
-        feelRating, feellikeRT = self.scaleLike.getRating(), self.scaleLike.getRT()
+        valence, valenceRT = self.scaleLike.getRating(), self.scaleLike.getRT()
         if real:
-            return(likeRating, likeRT, feelRating, feellikeRT)
+            return(shockprob, shockprobRT, valence, valenceRT)
         else:
-            return(feelRating)
+            return(valence)
         
 #%% trial
 
@@ -277,6 +294,7 @@ class subject:
         US = False
         if (CS[-2:] == 'US'):
             US = True
+            
             
         stimTime = stim_time - shock_time * US # adjust presentation of the stim for the shock (4-0.3)
         
@@ -314,10 +332,10 @@ class subject:
                 US = False # cancel shock
                 
             self.TOBii_record(self.rect.fillColor, 1 - shock_time * US, circle=True)
-            self.dataFile.write('{0},{1},{2},{3},{4},{5},,,,,{6},{7},{8},,,\n'.format(self.subjectID, self.Condition, self.group, self.trial_n, self.phase, CS, onset, button, RT))
+            self.dataFile.write('{0},{1},{2},{3},{4},{5},,,,,{6},{7},{8},,\n'.format(self.subjectID, self.Condition, self.group, self.trial_n, self.phase, CS, onset, button, RT))
         else:
             self.TOBii_record(self.rect.fillColor, stimTime-1)
-            self.dataFile.write('{0},{1},{2},{3},{4},{5},,,,,{6},,,,,\n'.format(self.subjectID, self.Condition, self.group, self.trial_n, self.phase, CS, onset))
+            self.dataFile.write('{0},{1},{2},{3},{4},{5},,,,,{6},,,,\n'.format(self.subjectID, self.Condition, self.group, self.trial_n, self.phase, CS, onset))
                 
             
                  
@@ -330,6 +348,7 @@ class subject:
         self.lj.setFIOState(0,0)
                     
         # every 10 trials run rating function
+        
         if (self.trial_n + 10) % 10 == 0:
             if random.randint(0, 1) == 1:
                 CSPlikeRating, CSPlikeRT, CSPfeelRating, CSPfeellikeRT = self.rating('CSplus')
@@ -338,8 +357,8 @@ class subject:
                 CSMlikeRating, CSMlikeRT, CSMfeelRating, CSMfeellikeRT = self.rating('CSminus')
                 CSPlikeRating, CSPlikeRT, CSPfeelRating, CSPfeellikeRT = self.rating('CSplus')
                 
-            self.dataFile.write('{0},{1},{2},{3},{4},{5},{6},{7},{8},{9},,,,,,\n'.format(self.subjectID, self.Condition, self.group, self.trial_n, self.phase, 'CSplus', CSPlikeRating, CSPlikeRT, CSPfeelRating, CSPfeellikeRT))
-            self.dataFile.write('{0},{1},{2},{3},{4},{5},{6},{7},{8},{9},,,,,,\n'.format(self.subjectID, self.Condition, self.group, self.trial_n, self.phase, 'CSminus', CSMlikeRating, CSMlikeRT, CSMfeelRating, CSMfeellikeRT))
+            self.dataFile.write('{0},{1},{2},{3},{4},{5},{6},{7},{8},{9},,,,,\n'.format(self.subjectID, self.Condition, self.group, self.trial_n, self.phase, 'CSplus', CSPlikeRating, CSPlikeRT, CSPfeelRating, CSPfeellikeRT))
+            self.dataFile.write('{0},{1},{2},{3},{4},{5},{6},{7},{8},{9},,,,,\n'.format(self.subjectID, self.Condition, self.group, self.trial_n, self.phase, 'CSminus', CSMlikeRating, CSMlikeRT, CSMfeelRating, CSMfeellikeRT))
             self.win.flip()
             self.TOBii_record(self.rect.fillColor, 2, stim=False)
 
@@ -361,7 +380,7 @@ class subject:
         """
         self.phase = "acq_inst"
         
-        slide1 = ('Welcome to the Yale Neurosience Decision Making lab!\n' + 
+        slide1 = ('Welcome to the Levy Decision Neuroscience Lab!\n' + 
                   'In the following experiment please try to stay as still as possible.\n' + 
                   'You are going to see different colored squares come up on the screen' + 
                   '\n\n\npress any key to continue')
@@ -376,7 +395,7 @@ class subject:
         event.waitKeys()
         self.lj.setFIOState(0,0)
         # create a baseline response to the squares (habituation)
-        for trial in range(0, 4):
+        for trial in range(0, 3):
             t =[]
             if random.randint(0, 1) == 1:
                 c1, c2, cl1, cl2 = "CSplus", "CSminus", self.stim["CSplus"], self.stim["CSminus"]
@@ -389,18 +408,20 @@ class subject:
                 self.rect.color = color
                 self.lj.setFIOState(0,1)
                 t.append(time.time() - self.t_exp)
+                
+                self.TOBii_record(color, 1, stim=False)
                 self.TOBii_record(color, 4)
                 
                 self.lj.setFIOState(0,0)
-                self.TOBii_record(color, 6, stim=False)
+                self.TOBii_record(color, 5, stim=False)
             
                 
 
 
             # write to file trial properties
-            self.dataFile.write('{0},{1},{2},{3},{4},{5},,,,,{6},,,,\n'.format(self.subjectID, self.Condition, self.group, self.trial_n, self.phase, c1, t[0]))
-            self.dataFile.write('{0},{1},{2},{3},{4},{5},,,,,{6},,,,\n'.format(self.subjectID, self.Condition, self.group, self.trial_n, self.phase, c2, t[1]))
-            
+            self.dataFile.write('{0},{1},{2},{3},{4},{5},,,,,{6},,,\n'.format(self.subjectID, self.Condition, self.group, self.trial_n, self.phase, c1, t[0]))
+            self.dataFile.write('{0},{1},{2},{3},{4},{5},,,,,{6},,,\n'.format(self.subjectID, self.Condition, self.group, self.trial_n, self.phase, c2, t[1]))
+                
         self.Text.text = slide2
         self.Text.draw()
         self.win.flip()
@@ -414,8 +435,8 @@ class subject:
             csmr = self.rating('CSminus', False)
             cspr = self.rating('CSplus', False)
             
-        self.dataFile.write('{0},{1},{2},{3},{4},{5},{6},,,,,,,,,\n'.format(self.subjectID, self.Condition, self.group, self.trial_n, self.phase, c1, cspr))
-        self.dataFile.write('{0},{1},{2},{3},{4},{5},{6},,,,,,,,,\n'.format(self.subjectID, self.Condition, self.group, self.trial_n, self.phase, c2, csmr))
+        self.dataFile.write('{0},{1},{2},{3},{4},{5},,,{6},,,,,,\n'.format(self.subjectID, self.Condition, self.group, self.trial_n, self.phase, c1, cspr))
+        self.dataFile.write('{0},{1},{2},{3},{4},{5},,,{6},,,,,,\n'.format(self.subjectID, self.Condition, self.group, self.trial_n, self.phase, c2, csmr))
             
         self.Text.pos = (0, 0)
         self.Text.text = slide3
@@ -440,18 +461,17 @@ class subject:
         None.
 
         """
-        
         self.phase = "acq"
         
-        a = [['CSplusUS', 'CSminus', 'CSplus', 'CSminus', 'CSminus', 'CSplusUS', 'CSminus', 'CSplusUS', 'CSplus', 'CSminus', 'CSplus', 'CSminus', 'CSplus', 'CSminus', 'CSplusUS', 'CSminus', 'CSplus', 'CSminus', 'CSminus', 'CSplusUS'],
-              ['CSplusUS', 'CSminus', 'CSminus', 'CSplusUS', 'CSminus', 'CSplusUS', 'CSminus', 'CSplus', 'CSminus', 'CSminus', 'CSplusUS', 'CSminus', 'CSplusUS', 'CSminus', 'CSplus', 'CSminus', 'CSplus', 'CSminus', 'CSplus', 'CSplus'],
-              ['CSplusUS', 'CSminus', 'CSminus', 'CSplus', 'CSminus', 'CSplus', 'CSminus', 'CSplusUS', 'CSminus', 'CSminus', 'CSplusUS', 'CSminus', 'CSplus', 'CSminus', 'CSminus', 'CSplusUS', 'CSplus', 'CSminus', 'CSplus', 'CSplusUS'],
-              ['CSplusUS', 'CSminus', 'CSminus', 'CSplusUS', 'CSminus', 'CSplus', 'CSminus', 'CSplus', 'CSplusUS', 'CSminus', 'CSplus', 'CSminus', 'CSplus', 'CSminus', 'CSminus', 'CSplusUS', 'CSminus', 'CSplusUS', 'CSminus', 'CSplus']]
+        a = [['CSplusUS', 'CSminus', 'CSplus',   'CSminus',  'CSminus',  'CSplusUS', 'CSminus', 'CSplusUS', 'CSplus', 'CSminus', 'CSplus', 'CSminus', 'CSplus', 'CSminus', 'CSplusUS', 'CSminus', 'CSplus', 'CSminus', 'CSminus', 'CSplusUS'],
+             ['CSplusUS', 'CSminus', 'CSminus',  'CSplusUS', 'CSminus',  'CSplusUS', 'CSminus', 'CSplus', 'CSminus', 'CSminus', 'CSplusUS', 'CSminus', 'CSplusUS', 'CSminus', 'CSplus', 'CSminus', 'CSplus', 'CSminus', 'CSplus', 'CSplus'],
+             ['CSplusUS', 'CSminus', 'CSminus',  'CSplus',   'CSminus',  'CSplus',   'CSminus', 'CSplusUS', 'CSminus', 'CSminus', 'CSplusUS', 'CSminus', 'CSplus', 'CSminus', 'CSminus', 'CSplusUS', 'CSplus', 'CSminus', 'CSplus', 'CSplusUS'],
+             ['CSplusUS', 'CSminus', 'CSminus',  'CSplusUS', 'CSminus',  'CSplus',   'CSminus', 'CSplus', 'CSplusUS', 'CSminus', 'CSplus', 'CSminus', 'CSplus', 'CSminus', 'CSminus', 'CSplusUS', 'CSminus', 'CSplusUS', 'CSminus', 'CSplus']]
  
-        b = [['CSplusUS', 'CSminus', 'CSminus', 'CSplusUS', 'CSminus', 'CSplusUS', 'CSplus', 'CSminus', 'CSminus', 'CSplusUS', 'CSminus', 'CSplus', 'CSplus', 'CSminus', 'CSplusUS', 'CSplusUS', 'CSminus', 'CSminus', 'CSplusUS', 'CSminus'],
-             ['CSplusUS', 'CSminus', 'CSminus', 'CSplusUS', 'CSminus', 'CSplusUS', 'CSplusUS', 'CSminus', 'CSplusUS', 'CSplus', 'CSminus', 'CSminus', 'CSplusUS', 'CSminus', 'CSplus', 'CSplus', 'CSminus', 'CSplusUS', 'CSminus', 'CSminus'],
-             ['CSplusUS', 'CSminus', 'CSminus', 'CSplusUS', 'CSplusUS', 'CSminus', 'CSminus', 'CSplusUS', 'CSplusUS', 'CSminus', 'CSminus', 'CSplusUS', 'CSplus', 'CSminus', 'CSminus', 'CSplusUS', 'CSplus', 'CSminus', 'CSminus', 'CSplusUS'],
-             ['CSminus', 'CSplus', 'CSplusUS', 'CSminus', 'CSplusUS', 'CSplusUS', 'CSminus', 'CSminus', 'CSplusUS', 'CSminus', 'CSminus', 'CSplusUS', 'CSminus', 'CSminus', 'CSplusUS', 'CSminus', 'CSplus', 'CSminus', 'CSplus', 'CSplusUS']]
+        b = [['CSplusUS', 'CSminus', 'CSminus',  'CSplusUS', 'CSminus',  'CSplusUS', 'CSplus', 'CSminus', 'CSminus', 'CSplusUS', 'CSminus', 'CSplus', 'CSplus', 'CSminus', 'CSplusUS', 'CSplusUS', 'CSminus', 'CSminus', 'CSplusUS', 'CSminus'],
+             ['CSplusUS', 'CSminus', 'CSminus',  'CSplusUS', 'CSminus',  'CSplusUS', 'CSplusUS', 'CSminus', 'CSplusUS', 'CSplus', 'CSminus', 'CSminus', 'CSplusUS', 'CSminus', 'CSplus', 'CSplus', 'CSminus', 'CSplusUS', 'CSminus', 'CSminus'],
+             ['CSplusUS', 'CSminus', 'CSminus',  'CSplusUS', 'CSplusUS', 'CSminus',  'CSminus', 'CSplusUS', 'CSplusUS', 'CSminus', 'CSminus', 'CSplusUS', 'CSplus', 'CSminus', 'CSminus', 'CSplusUS', 'CSplus', 'CSminus', 'CSminus', 'CSplusUS'],
+             ['CSminus',  'CSplus',  'CSplusUS', 'CSminus',  'CSplusUS', 'CSplusUS', 'CSminus', 'CSminus', 'CSplusUS', 'CSminus', 'CSminus', 'CSplusUS', 'CSminus', 'CSminus', 'CSplusUS', 'CSminus', 'CSplus', 'CSminus', 'CSplus', 'CSplusUS']]
 
         for i in range(len(a[self.group])):
             self.trial(a[self.group][i])
@@ -459,6 +479,7 @@ class subject:
         for i in range(len(a[self.group])):
             self.trial(b[self.group][i])
     
+        
     def extinction_inst(self):
         """
         If avoidance is run before extinction, explains that the button will no longer be avilable
@@ -487,17 +508,18 @@ class subject:
         self.phase = 'ext'
         
         
-        exintction = [['CSplus', 'CSplus', 'CSminus', 'CSminus', 'CSplus', 'CSminus', 'CSplus', 'CSminus', 'CSminus', 'CSplus', 'CSplus', 'CSminus', 'CSminus', 'CSplus', 'CSminus', 'CSminus', 'CSplus', 'CSminus', 'CSplus', 'CSplus', 
-                       'CSminus', 'CSplus', 'CSminus', 'CSminus', 'CSplus', 'CSplus', 'CSminus', 'CSplus', 'CSplus', 'CSminus', 'CSplus', 'CSminus', 'CSplus', 'CSplus', 'CSminus', 'CSplus', 'CSminus', 'CSminus', 'CSplus', 'CSminus'], 
-                      ['CSplus', 'CSplus', 'CSminus', 'CSplus', 'CSplus', 'CSminus', 'CSminus', 'CSplus', 'CSplus', 'CSminus', 'CSminus', 'CSplus', 'CSminus', 'CSplus', 'CSminus', 'CSminus', 'CSplus', 'CSminus', 'CSplus', 'CSminus', 
-                       'CSplus', 'CSminus', 'CSminus', 'CSplus', 'CSminus', 'CSminus', 'CSplus', 'CSminus', 'CSplus', 'CSplus', 'CSminus', 'CSplus', 'CSplus', 'CSminus', 'CSminus', 'CSplus', 'CSminus', 'CSminus', 'CSplus', 'CSplus'], 
-                      ['CSplus', 'CSplus', 'CSminus', 'CSminus', 'CSplus', 'CSminus', 'CSplus', 'CSminus', 'CSminus', 'CSplus', 'CSplus', 'CSminus', 'CSminus', 'CSplus', 'CSminus', 'CSplus', 'CSplus', 'CSminus', 'CSminus', 'CSplus', 
-                       'CSminus', 'CSplus', 'CSminus', 'CSplus', 'CSminus', 'CSminus', 'CSplus', 'CSminus', 'CSplus', 'CSminus', 'CSplus', 'CSplus', 'CSminus', 'CSminus', 'CSplus', 'CSplus', 'CSminus', 'CSplus', 'CSminus', 'CSplus'], 
-                      ['CSplus', 'CSminus', 'CSminus', 'CSplus', 'CSminus', 'CSplus', 'CSminus', 'CSminus', 'CSplus', 'CSplus', 'CSminus', 'CSplus', 'CSplus', 'CSminus', 'CSminus', 'CSplus', 'CSminus', 'CSplus', 'CSminus', 'CSminus', 
-                       'CSplus', 'CSminus', 'CSplus', 'CSminus', 'CSplus', 'CSminus', 'CSminus', 'CSplus', 'CSplus', 'CSminus', 'CSplus', 'CSplus', 'CSminus', 'CSplus', 'CSminus', 'CSplus', 'CSminus', 'CSplus', 'CSplus', 'CSminus']]
+        exintction = [['CSplus',  'CSplus',  'CSminus', 'CSminus', 'CSplus',  'CSminus', 'CSplus',  'CSminus', 'CSminus', 'CSplus',  'CSplus',  'CSminus', 'CSminus', 'CSplus',  'CSminus', 'CSminus', 'CSplus',  'CSminus', 'CSplus',  'CSplus', 
+                       'CSminus', 'CSplus',  'CSminus', 'CSminus', 'CSplus',  'CSplus',  'CSminus', 'CSplus',  'CSplus',  'CSminus', 'CSplus',  'CSminus', 'CSplus',  'CSplus',  'CSminus', 'CSplus',  'CSminus', 'CSminus', 'CSplus',  'CSminus'], 
+                      ['CSplus',  'CSplus',  'CSminus', 'CSplus',  'CSplus',  'CSminus', 'CSminus', 'CSplus',  'CSplus',  'CSminus', 'CSminus', 'CSplus',  'CSminus', 'CSplus',  'CSminus', 'CSminus', 'CSplus',  'CSminus', 'CSplus',  'CSminus', 
+                       'CSplus',  'CSminus', 'CSminus', 'CSplus',  'CSminus', 'CSminus', 'CSplus',  'CSminus', 'CSplus',  'CSplus',  'CSminus', 'CSplus',  'CSplus',  'CSminus', 'CSminus', 'CSplus',  'CSminus', 'CSminus', 'CSplus',  'CSplus'], 
+                      ['CSplus',  'CSplus',  'CSminus', 'CSminus', 'CSplus',  'CSminus', 'CSplus',  'CSminus', 'CSminus', 'CSplus',  'CSplus',  'CSminus', 'CSminus', 'CSplus',  'CSminus', 'CSplus',  'CSplus',  'CSminus', 'CSminus', 'CSplus', 
+                       'CSminus', 'CSplus',  'CSminus', 'CSplus',  'CSminus', 'CSminus', 'CSplus',  'CSminus', 'CSplus',  'CSminus', 'CSplus',  'CSplus',  'CSminus', 'CSminus', 'CSplus',  'CSplus',  'CSminus', 'CSplus',  'CSminus', 'CSplus'], 
+                      ['CSplus',  'CSminus', 'CSminus', 'CSplus',  'CSminus', 'CSplus',  'CSminus', 'CSminus', 'CSplus',  'CSplus',  'CSminus', 'CSplus',  'CSplus',  'CSminus', 'CSminus', 'CSplus',  'CSminus', 'CSplus',  'CSminus', 'CSminus', 
+                       'CSplus',  'CSminus', 'CSplus',  'CSminus', 'CSplus',  'CSminus', 'CSminus', 'CSplus',  'CSplus',  'CSminus', 'CSplus',  'CSplus',  'CSminus', 'CSplus',  'CSminus', 'CSplus',  'CSminus', 'CSplus',  'CSplus',  'CSminus']]
         
         for i in range(len(exintction[self.group])):
             self.trial(exintction[self.group][i])
+            
           
     def avoidance_inst(self):
         """
@@ -575,14 +597,15 @@ class subject:
         """
         self.phase = "avo"
         
-        avoidance =  [['CSplusUS', 'CSminus', 'CSplusUS', 'CSminus', 'CSplusUS', 'CSplusUS', 'CSminus', 'CSminus', 'CSplusUS', 'CSplusUS', 'CSminus', 'CSminus', 'CSplusUS', 'CSplusUS', 'CSminus', 'CSminus', 'CSplusUS', 'CSminus', 'CSminus', 'CSplusUS'],
-                      ['CSplusUS', 'CSplusUS', 'CSminus', 'CSminus', 'CSplusUS', 'CSminus', 'CSminus', 'CSplusUS', 'CSminus', 'CSplusUS', 'CSplusUS', 'CSminus', 'CSminus', 'CSplusUS', 'CSplusUS', 'CSminus', 'CSplusUS', 'CSplusUS', 'CSminus', 'CSminus'],
-                      ['CSplusUS', 'CSplusUS', 'CSminus', 'CSminus', 'CSplusUS', 'CSplusUS', 'CSminus', 'CSminus', 'CSplusUS', 'CSminus', 'CSplusUS', 'CSplusUS', 'CSminus', 'CSplusUS', 'CSminus', 'CSminus', 'CSplusUS', 'CSminus', 'CSminus', 'CSplusUS'],
-                      ['CSplusUS', 'CSplusUS', 'CSminus', 'CSplusUS', 'CSminus', 'CSminus', 'CSplusUS', 'CSminus', 'CSplusUS', 'CSplusUS', 'CSminus', 'CSminus', 'CSplusUS', 'CSminus', 'CSplusUS', 'CSplusUS', 'CSminus', 'CSplusUS', 'CSminus', 'CSminus']]
+        avoidance =  [['CSplusUS', 'CSminus',  'CSplusUS', 'CSminus',  'CSplusUS', 'CSplusUS', 'CSminus',  'CSminus',  'CSplusUS', 'CSplusUS', 'CSminus',  'CSminus',  'CSplusUS', 'CSplusUS', 'CSminus',  'CSminus',  'CSplusUS', 'CSminus',  'CSminus', 'CSplusUS'],
+                      ['CSplusUS', 'CSplusUS', 'CSminus',  'CSminus',  'CSplusUS', 'CSminus',  'CSminus',  'CSplusUS', 'CSminus',  'CSplusUS', 'CSplusUS', 'CSminus',  'CSminus',  'CSplusUS', 'CSplusUS', 'CSminus',  'CSplusUS', 'CSplusUS', 'CSminus', 'CSminus'],
+                      ['CSplusUS', 'CSplusUS', 'CSminus',  'CSminus',  'CSplusUS', 'CSplusUS', 'CSminus',  'CSminus',  'CSplusUS', 'CSminus',  'CSplusUS', 'CSplusUS', 'CSminus',  'CSplusUS', 'CSminus',  'CSminus',  'CSplusUS', 'CSminus',  'CSminus', 'CSplusUS'],
+                      ['CSplusUS', 'CSplusUS', 'CSminus',  'CSplusUS', 'CSminus',  'CSminus',  'CSplusUS', 'CSminus',  'CSplusUS', 'CSplusUS', 'CSminus',  'CSminus',  'CSplusUS', 'CSminus',  'CSplusUS', 'CSplusUS', 'CSminus',  'CSplusUS', 'CSminus', 'CSminus']]
         
         
         for i in range(len(avoidance[self.group])):
             self.trial(avoidance[self.group][i], True)
+            
             
     def selfinflicting_inst(self):
         """
@@ -703,7 +726,8 @@ class subject:
         self.lj.close()
         self.dataFile.close()
         self.win.close()
-        np.savetxt(fileName, self.etData, delimiter=",", fmt='%s')
+        final_data = np.unique(self.etData, axis=0)
+        np.savetxt(fileName, final_data, delimiter=",", fmt='%s')
         core.quit()
 
 #%%
@@ -715,10 +739,9 @@ def main():
     sub = subject(expInfo['subject no']) # create a subject object with subject number
     
     
-    
+    sub.shock_calibration() 
     sub.TOBii_calibration() 
     sub.init_screen()
-    sub.shock_calibration() 
     sub.acquisition_inst()
     sub.acquisition()
     
